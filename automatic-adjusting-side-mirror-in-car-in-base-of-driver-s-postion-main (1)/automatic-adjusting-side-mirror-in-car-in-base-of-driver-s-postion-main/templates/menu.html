@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AutoMirror – AI Smart Mirror System</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        /* ── AI data panel (bottom of each mirror card) ── */
+        .ai-data-row {
+            display: flex;
+            justify-content: space-around;
+            padding: 6px 14px 2px;
+            border-top: 1px solid var(--border);
+        }
+
+        .ai-chip {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .ai-chip-label {
+            font-size: 9px;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            color: var(--text-dim);
+        }
+
+        .ai-chip-val {
+            font-family: var(--font-display);
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--accent-green);
+        }
+
+        /* ── Head-pose HUD overlay in camera ── */
+        .head-hud {
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .head-chip {
+            padding: 3px 10px;
+            background: rgba(10, 12, 18, 0.78);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            font-size: 11px;
+            backdrop-filter: blur(8px);
+            color: var(--accent-amber);
+            font-family: var(--font-display);
+            letter-spacing: 1px;
+        }
+
+        /* ── Servo badge ── */
+        .servo-badge {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 14px;
+            background: rgba(0, 229, 160, 0.05);
+            border-top: 1px solid rgba(0, 229, 160, 0.12);
+            font-size: 10px;
+            letter-spacing: 0.5px;
+        }
+
+        .servo-badge span {
+            color: var(--text-dim);
+        }
+
+        .servo-badge strong {
+            color: var(--accent-green);
+            font-family: var(--font-display);
+            font-size: 12px;
+        }
+
+        /* ── AI label in topbar ── */
+        .ai-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 12px;
+            border-radius: 20px;
+            background: rgba(0, 229, 160, 0.08);
+            border: 1px solid rgba(0, 229, 160, 0.25);
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--accent-green);
+            letter-spacing: 0.5px;
+        }
+
+        .ai-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--accent-green);
+            box-shadow: 0 0 8px var(--accent-green);
+            animation: blink 1.6s ease-in-out infinite;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- ══════════════════════════════════════════
+     TOP BAR
+══════════════════════════════════════════ -->
+    <header class="topbar">
+        <div class="topbar-brand">
+            <div class="brand-icon">🪞</div>
+            <div>
+                <div class="brand-name">AUTOMIRROR</div>
+                <div class="brand-sub">AI Smart Mirror System</div>
+            </div>
+        </div>
+
+        <div class="topbar-center">
+            <div class="topbar-time" id="clock">--:--</div>
+            <div class="topbar-date" id="date-display">---</div>
+        </div>
+
+        <div class="topbar-right">
+            <div class="ai-badge">
+                <span class="ai-dot"></span>
+                MediaPipe AI
+            </div>
+            <div class="status-pill">
+                <span class="status-dot" id="face-dot"></span>
+                <span id="face-label">No Face</span>
+            </div>
+            <div class="status-pill">
+                <span class="status-dot" id="cal-dot"></span>
+                <span id="cal-label">Uncalibrated</span>
+            </div>
+            <div class="status-pill">
+                <span class="status-dot active"></span>
+                <span>RHD · India</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- ══════════════════════════════════════════
+     DASHBOARD
+══════════════════════════════════════════ -->
+    <main class="dashboard">
+
+        <!-- ── LEFT MIRROR PANEL ── -->
+        <section class="mirror-panel card" id="left-panel">
+            <div class="card-title">◀ LEFT MIRROR</div>
+
+            <div class="mirror-visual-wrap">
+                <div class="mirror-stage">
+                    <div class="mirror-frame" id="left-mirror-frame">
+                        <div class="mirror-sky"></div>
+                        <div class="mirror-horizon"></div>
+                        <div class="mirror-road"></div>
+                        <div class="mirror-reflection"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mirror-readouts">
+                <div class="readout">
+                    <span class="readout-label">Horiz</span>
+                    <span class="readout-value" id="left-h">0.0</span>
+                    <span class="readout-unit">deg</span>
+                </div>
+                <div class="readout">
+                    <span class="readout-label">Vert</span>
+                    <span class="readout-value" id="left-v">0.0</span>
+                    <span class="readout-unit">deg</span>
+                </div>
+            </div>
+
+            <div class="gauge-row">
+                <span class="gauge-label">◀</span>
+                <div class="gauge-track">
+                    <div class="gauge-fill" id="left-h-gauge"></div>
+                </div>
+                <span class="gauge-label">▶</span>
+            </div>
+            <div class="gauge-row">
+                <span class="gauge-label">▲</span>
+                <div class="gauge-track">
+                    <div class="gauge-fill" id="left-v-gauge"></div>
+                </div>
+                <span class="gauge-label">▼</span>
+            </div>
+
+            <!-- AI data chips -->
+            <div class="ai-data-row">
+                <div class="ai-chip">
+                    <span class="ai-chip-label">Yaw</span>
+                    <span class="ai-chip-val" id="ai-yaw">0.0°</span>
+                </div>
+                <div class="ai-chip">
+                    <span class="ai-chip-label">Pitch</span>
+                    <span class="ai-chip-val" id="ai-pitch">0.0°</span>
+                </div>
+                <div class="ai-chip">
+                    <span class="ai-chip-label">Roll</span>
+                    <span class="ai-chip-val" id="ai-roll">0.0°</span>
+                </div>
+            </div>
+
+            <!-- ESP32 servo badge -->
+            <div class="servo-badge">
+                <span>Servo H</span><strong id="sv-left-h">90°</strong>
+                <span>Servo V</span><strong id="sv-left-v">90°</strong>
+            </div>
+
+            <div class="manual-controls">
+                <div class="manual-title">Manual Override</div>
+                <div class="btn-grid">
+                    <div></div>
+                    <button class="btn-dir" id="lbtn-up">▲</button>
+                    <div></div>
+                    <button class="btn-dir" id="lbtn-left">◀</button>
+                    <button class="btn-dir center" onclick="resetSingle('left')">⟳</button>
+                    <button class="btn-dir" id="lbtn-right">▶</button>
+                    <div></div>
+                    <button class="btn-dir" id="lbtn-down">▼</button>
+                    <div></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ── CENTER COLUMN ── -->
+        <div class="center-col">
+
+            <!-- Camera feed -->
+            <div class="card camera-card">
+                <div class="card-title" style="padding-bottom:10px">🤖 AI CAMERA · MediaPipe Face Mesh</div>
+                <div class="camera-wrap">
+                    <img id="camera-feed" src="/video_feed" alt="AI Camera Feed">
+                    <div class="camera-overlay"></div>
+
+                    <!-- Head-pose HUD -->
+                    <div class="head-hud">
+                        <span class="head-chip" id="hud-yaw">Yaw --°</span>
+                        <span class="head-chip" id="hud-pitch">Pitch --°</span>
+                        <span class="head-chip" id="hud-lm">LM: --</span>
+                    </div>
+
+                    <div class="cam-badge">
+                        <span class="cam-rec-dot"></span>
+                        <span>LIVE AI</span>
+                    </div>
+                    <div class="eye-hud">
+                        <span class="hud-chip" id="eye-x-chip">EX: --</span>
+                        <span class="hud-chip" id="eye-y-chip">EY: --</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action bar -->
+            <div class="action-bar">
+                <button class="btn btn-primary" onclick="goCal()">🎯 Smart Calibrate</button>
+                <button class="btn btn-secondary" onclick="resetAll()">⟳ Reset All</button>
+                <button class="btn btn-secondary" onclick="toggleAuto()" id="btn-auto">🤖 Auto: ON</button>
+                <button class="btn btn-danger" onclick="emergencyCenter()">⚠ Centre</button>
+            </div>
+        </div>
+
+        <!-- ── RIGHT MIRROR PANEL ── -->
+        <section class="mirror-panel card" id="right-panel">
+            <div class="card-title">RIGHT MIRROR ▶</div>
+
+            <div class="mirror-visual-wrap">
+                <div class="mirror-stage">
+                    <div class="mirror-frame" id="right-mirror-frame">
+                        <div class="mirror-sky"></div>
+                        <div class="mirror-horizon"></div>
+                        <div class="mirror-road"></div>
+                        <div class="mirror-reflection"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mirror-readouts">
+                <div class="readout">
+                    <span class="readout-label">Horiz</span>
+                    <span class="readout-value" id="right-h">0.0</span>
+                    <span class="readout-unit">deg</span>
+                </div>
+                <div class="readout">
+                    <span class="readout-label">Vert</span>
+                    <span class="readout-value" id="right-v">0.0</span>
+                    <span class="readout-unit">deg</span>
+                </div>
+            </div>
+
+            <div class="gauge-row">
+                <span class="gauge-label">◀</span>
+                <div class="gauge-track">
+                    <div class="gauge-fill" id="right-h-gauge"></div>
+                </div>
+                <span class="gauge-label">▶</span>
+            </div>
+            <div class="gauge-row">
+                <span class="gauge-label">▲</span>
+                <div class="gauge-track">
+                    <div class="gauge-fill" id="right-v-gauge"></div>
+                </div>
+                <span class="gauge-label">▼</span>
+            </div>
+
+            <!-- AI data chips (right panel mirrors left) -->
+            <div class="ai-data-row">
+                <div class="ai-chip">
+                    <span class="ai-chip-label">Landmarks</span>
+                    <span class="ai-chip-val" id="ai-lm-count">--</span>
+                </div>
+                <div class="ai-chip">
+                    <span class="ai-chip-label">Auto</span>
+                    <span class="ai-chip-val" id="ai-mode-chip">ON</span>
+                </div>
+                <div class="ai-chip">
+                    <span class="ai-chip-label">RHD Scale</span>
+                    <span class="ai-chip-val">1.4×/0.6×</span>
+                </div>
+            </div>
+
+            <!-- ESP32 servo badge -->
+            <div class="servo-badge">
+                <span>Servo H</span><strong id="sv-right-h">90°</strong>
+                <span>Servo V</span><strong id="sv-right-v">90°</strong>
+            </div>
+
+            <div class="manual-controls">
+                <div class="manual-title">Manual Override</div>
+                <div class="btn-grid">
+                    <div></div>
+                    <button class="btn-dir" id="rbtn-up">▲</button>
+                    <div></div>
+                    <button class="btn-dir" id="rbtn-left">◀</button>
+                    <button class="btn-dir center" onclick="resetSingle('right')">⟳</button>
+                    <button class="btn-dir" id="rbtn-right">▶</button>
+                    <div></div>
+                    <button class="btn-dir" id="rbtn-down">▼</button>
+                    <div></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ── BOTTOM BAR ── -->
+        <div class="bottom-bar">
+
+            <!-- Driver profiles -->
+            <div class="card profiles-card">
+                <div class="card-title" style="padding:0 0 8px">👤 DRIVER PROFILES</div>
+                <div class="profile-row">
+                    <select class="profile-select" id="profile-select">
+                        <option value="">— Select Profile —</option>
+                    </select>
+                    <button class="btn btn-secondary" style="height:38px;padding:0 14px;font-size:12px"
+                        onclick="loadProfile()">Load</button>
+                    <input class="profile-name-input" id="profile-name" type="text" placeholder="New profile name…">
+                    <button class="btn btn-primary" style="height:38px;padding:0 14px;font-size:12px"
+                        onclick="saveProfile()">💾 Save</button>
+                    <button class="btn btn-danger" style="height:38px;padding:0 14px;font-size:12px"
+                        onclick="deleteProfile()">🗑</button>
+                </div>
+            </div>
+
+            <!-- System stats -->
+            <div class="card stats-card">
+                <div class="stat-block">
+                    <div class="stat-val text-accent" id="stat-fps">30</div>
+                    <div class="stat-unit">FPS</div>
+                </div>
+                <div class="stat-divider"></div>
+                <div class="stat-block">
+                    <div class="stat-val" id="stat-lat">--</div>
+                    <div class="stat-unit">ms Lat</div>
+                </div>
+                <div class="stat-divider"></div>
+                <div class="stat-block">
+                    <div class="stat-val text-green" id="stat-lm">468</div>
+                    <div class="stat-unit">Landmarks</div>
+                </div>
+                <div class="stat-divider"></div>
+                <div class="stat-block">
+                    <div class="stat-val text-green" id="stat-det">AI</div>
+                    <div class="stat-unit">Engine</div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <div id="toast-container"></div>
+    <script src="/static/app.js"></script>
+</body>
+
+</html>

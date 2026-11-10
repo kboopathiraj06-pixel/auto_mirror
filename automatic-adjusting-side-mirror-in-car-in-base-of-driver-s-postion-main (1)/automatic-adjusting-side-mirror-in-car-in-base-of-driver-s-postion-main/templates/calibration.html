@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AutoMirror – AI Smart Calibration</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .cal-camera-wrap {
+            width: 320px;
+            height: 220px;
+            border-radius: var(--radius-md);
+            overflow: hidden;
+            border: 1px solid var(--border);
+            position: relative;
+            margin: 0 auto 16px;
+            box-shadow: 0 0 30px rgba(0, 198, 255, 0.1);
+        }
+
+        .cal-camera-wrap img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1);
+            display: block;
+        }
+
+        .cal-camera-wrap .camera-overlay {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+        }
+
+        .cal-camera-wrap .camera-overlay::before,
+        .cal-camera-wrap .camera-overlay::after {
+            content: '';
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border-color: var(--accent);
+            border-style: solid;
+            border-width: 2px;
+        }
+
+        .cal-camera-wrap .camera-overlay::before {
+            top: 8px;
+            left: 8px;
+            border-right-width: 0;
+            border-bottom-width: 0;
+            border-radius: 4px 0 0 0;
+        }
+
+        .cal-camera-wrap .camera-overlay::after {
+            bottom: 8px;
+            right: 8px;
+            border-left-width: 0;
+            border-top-width: 0;
+            border-radius: 0 0 4px 0;
+        }
+
+        .face-status-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 14px;
+            font-size: 13px;
+            color: var(--text-dim);
+        }
+
+        #cal-face-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--accent-red);
+            box-shadow: 0 0 8px var(--accent-red);
+            transition: all 0.3s;
+        }
+
+        #cal-face-indicator.detected {
+            background: var(--accent-green);
+            box-shadow: 0 0 8px var(--accent-green);
+        }
+
+        /* AI readout chips during calibration */
+        .cal-ai-row {
+            display: flex;
+            justify-content: space-around;
+            margin-bottom: 14px;
+            padding: 10px 16px;
+            background: var(--bg-glass);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+        }
+
+        .cal-ai-chip {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .cal-ai-label {
+            font-size: 9px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--text-dim);
+        }
+
+        .cal-ai-val {
+            font-family: var(--font-display);
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--accent-green);
+        }
+
+        .btn-cal-main {
+            width: 100%;
+            height: 52px;
+            font-size: 15px;
+            letter-spacing: 1px;
+            border-radius: var(--radius-md);
+        }
+
+        .countdown-ring {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 60px;
+            height: 60px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .countdown-ring.visible {
+            opacity: 1;
+        }
+
+        .countdown-text {
+            font-family: var(--font-display);
+            font-size: 28px;
+            font-weight: 700;
+            fill: var(--accent);
+        }
+    </style>
+</head>
+
+<body>
+
+    <header class="topbar">
+        <div class="topbar-brand">
+            <div class="brand-icon">🪞</div>
+            <div>
+                <div class="brand-name">AUTOMIRROR</div>
+                <div class="brand-sub">AI Calibration Mode</div>
+            </div>
+        </div>
+        <div class="topbar-center">
+            <div class="topbar-time" id="clock">--:--</div>
+        </div>
+        <div class="topbar-right">
+            <a href="/" style="text-decoration:none">
+                <button class="btn btn-secondary">← Dashboard</button>
+            </a>
+        </div>
+    </header>
+
+    <div class="cal-page">
+        <div class="card cal-card">
+            <div class="cal-title">🎯 AI SMART CALIBRATION</div>
+            <p class="cal-subtitle">
+                MediaPipe Face Mesh will detect 468 facial landmarks<br>
+                and calculate your exact head orientation as the neutral reference.
+            </p>
+
+            <div class="cal-camera-wrap">
+                <img src="/video_feed" alt="AI Camera">
+                <div class="camera-overlay"></div>
+                <svg class="countdown-ring" id="countdown-ring" viewBox="0 0 60 60">
+                    <circle cx="30" cy="30" r="26" fill="rgba(10,12,18,0.7)" stroke="rgba(0,198,255,0.3)"
+                        stroke-width="2" />
+                    <text class="countdown-text" x="30" y="38" text-anchor="middle" id="countdown-num">3</text>
+                </svg>
+            </div>
+
+            <div class="face-status-row">
+                <div id="cal-face-indicator"></div>
+                <span id="cal-face-text">Position your face in the camera</span>
+            </div>
+
+            <!-- Live AI readouts -->
+            <div class="cal-ai-row">
+                <div class="cal-ai-chip">
+                    <span class="cal-ai-label">Yaw</span>
+                    <span class="cal-ai-val" id="cal-yaw">--°</span>
+                </div>
+                <div class="cal-ai-chip">
+                    <span class="cal-ai-label">Pitch</span>
+                    <span class="cal-ai-val" id="cal-pitch">--°</span>
+                </div>
+                <div class="cal-ai-chip">
+                    <span class="cal-ai-label">Roll</span>
+                    <span class="cal-ai-val" id="cal-roll">--°</span>
+                </div>
+                <div class="cal-ai-chip">
+                    <span class="cal-ai-label">Landmarks</span>
+                    <span class="cal-ai-val" id="cal-lm">--</span>
+                </div>
+            </div>
+
+            <div class="cal-steps">
+                <div class="cal-step">
+                    <div class="cal-step-num">1</div>
+                    <div class="cal-step-text">Sit naturally in your driving position. Look straight ahead at the road.
+                    </div>
+                </div>
+                <div class="cal-step">
+                    <div class="cal-step-num">2</div>
+                    <div class="cal-step-text">Ensure MediaPipe detects your face (green indicator above).</div>
+                </div>
+                <div class="cal-step">
+                    <div class="cal-step-num">3</div>
+                    <div class="cal-step-text">Hold still and click <strong style="color:var(--accent)">Start
+                            Calibration</strong>. The AI captures your head yaw &amp; pitch.</div>
+                </div>
+                <div class="cal-step">
+                    <div class="cal-step-num">4</div>
+                    <div class="cal-step-text">Mirrors auto-adjust whenever you move away from this baseline position.
+                    </div>
+                </div>
+            </div>
+
+            <div class="cal-progress">
+                <div class="cal-progress-bar" id="cal-bar"></div>
+            </div>
+
+            <button class="btn btn-primary btn-cal-main" id="btn-start-cal" onclick="startCalibration()">
+                🎯 Start AI Calibration
+            </button>
+        </div>
+    </div>
+
+    <div id="toast-container"></div>
+
+    <script>
+        function updateClock() {
+            const el = document.getElementById('clock');
+            if (el) el.textContent = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+        }
+        updateClock(); setInterval(updateClock, 1000);
+
+        function toast(msg, type = 'info') {
+            const el = document.createElement('div');
+            el.className = `toast ${type}`; el.textContent = msg;
+            document.getElementById('toast-container').appendChild(el);
+            setTimeout(() => el.remove(), 3200);
+        }
+
+        let faceDetected = false;
+
+        async function pollState() {
+            try {
+                const r = await fetch('/api/mirror_state');
+                const d = await res.json();
+
+                faceDetected = d.face_detected;
+                const ind = document.getElementById('cal-face-indicator');
+                const txt = document.getElementById('cal-face-text');
+                if (faceDetected) {
+                    ind.classList.add('detected');
+                    txt.textContent = `Face detected · ${d.landmarks_count} landmarks`;
+                } else {
+                    ind.classList.remove('detected');
+                    txt.textContent = 'Position your face in the camera';
+                }
+
+                // Show live AI readouts
+                const fmt = v => (v >= 0 ? '+' : '') + v.toFixed(1) + '°';
+                const setText = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+                setText('cal-yaw', fmt(d.head_yaw || 0));
+                setText('cal-pitch', fmt(d.head_pitch || 0));
+                setText('cal-roll', fmt(d.head_roll || 0));
+                setText('cal-lm', d.landmarks_count || '--');
+            } catch { }
+        }
+        // Fix: use 'res' not 'r'
+        async function pollFace() {
+            try {
+                const res = await fetch('/api/mirror_state');
+                const d = await res.json();
+                faceDetected = d.face_detected;
+                const ind = document.getElementById('cal-face-indicator');
+                const txt = document.getElementById('cal-face-text');
+                if (faceDetected) {
+                    ind.classList.add('detected');
+                    txt.textContent = `Face detected · ${d.landmarks_count} landmarks`;
+                } else {
+                    ind.classList.remove('detected');
+                    txt.textContent = 'Position your face in the camera';
+                }
+                const fmt = v => (v !== undefined ? (v >= 0 ? '+' : '') + Number(v).toFixed(1) + '°' : '--°');
+                const setText = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+                setText('cal-yaw', fmt(d.head_yaw));
+                setText('cal-pitch', fmt(d.head_pitch));
+                setText('cal-roll', fmt(d.head_roll));
+                setText('cal-lm', d.landmarks_count || '--');
+            } catch { }
+        }
+        setInterval(pollFace, 400);
+        pollFace();
+
+        let calibrating = false;
+        async function startCalibration() {
+            if (calibrating) return;
+            if (!faceDetected) { toast('No face detected. Please look at the camera.', 'error'); return; }
+            calibrating = true;
+            const btn = document.getElementById('btn-start-cal');
+            btn.disabled = true; btn.textContent = 'Calibrating…';
+            const bar = document.getElementById('cal-bar');
+            const ring = document.getElementById('countdown-ring');
+            const num = document.getElementById('countdown-num');
+            ring.classList.add('visible');
+            let count = 3; num.textContent = count;
+            const iv = setInterval(() => {
+                count--;
+                num.textContent = count > 0 ? count : '✓';
+                bar.style.width = `${(3 - count) * 33.3}%`;
+                if (count <= 0) clearInterval(iv);
+            }, 1000);
+            await new Promise(r => setTimeout(r, 3200));
+            try {
+                const res = await fetch('/api/calibrate', { method: 'POST' });
+                const data = await res.json();
+                if (data.status === 'ok') {
+                    bar.style.width = '100%';
+                    const c = data.calibration;
+                    toast(`✅ Calibrated: Yaw ${c.yaw?.toFixed(1)}° Pitch ${c.pitch?.toFixed(1)}°`, 'success');
+                    setTimeout(() => { window.location.href = '/'; }, 1800);
+                } else throw new Error();
+            } catch {
+                toast('Calibration failed. Try again.', 'error');
+                bar.style.width = '0%';
+                btn.disabled = false; btn.textContent = '🎯 Start AI Calibration';
+                calibrating = false;
+            }
+            ring.classList.remove('visible');
+        }
+    </script>
+</body>
+
+</html>
